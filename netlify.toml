@@ -1,0 +1,25 @@
+# netlify.toml
+
+[build]
+  # Command to build your site (if applicable)
+  # command = "npm run build"
+  # Directory containing your built site (if applicable)
+  # publish = "dist"
+
+[functions]
+  # Directory where Netlify Functions live
+  directory = "netlify/functions"
+  # Ensure Node.js runtime dependencies are installed
+  node_bundler = "esbuild" # Recommended bundler
+
+# Redirect rule to proxy requests starting with /api/tmdb/ to the function
+# This rule takes anything after /api/tmdb/ and passes it to the function's path
+# Example: Request to /api/tmdb/3/movie/550?api_key=...
+# Becomes a call to the function /.netlify/functions/tmdb-proxy/3/movie/550?api_key=...
+[[redirects]]
+  from = "/api/tmdb/*" # The path your frontend will call
+  to = "/.netlify/functions/tmdb-proxy/:splat" # The function to handle it
+  status = 200 # Use 200 for proxying API calls
+  force = true # Ensure this rule takes precedence
+  # You might need conditions if you have other redirects
+  # conditions = { Role = ["admin"] } # Example condition
