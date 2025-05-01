@@ -1,5 +1,7 @@
 // netlify/functions/tmdb-proxy.js
 const axios = require('axios');
+// 不需要 require('url')，URL 是 Node.js 的全局对象
+
 const TMDB_BASE_URL = 'https://api.themoviedb.org';
 
 exports.handler = async (event, context) => {
@@ -27,27 +29,32 @@ exports.handler = async (event, context) => {
 
     try {
         // --- Get the FULL original path and query string ---
-        // Use event.rawUrl which typically contains the path as requested by the client
-        // BEFORE the rewrite rule was applied by Netlify.
-        // For a request like https://.../3/search/tv?query=..., event.rawUrl should be "/3/search/tv?query=..."
         if (!event.rawUrl) {
-             console.error("FATAL: event.rawUrl is missing. Cannot determine the target TMDB path.");
-             // Return a server error because the function cannot operate without the path
+             console.error("FATAL: event.rawUrl is missing.");
              return {
                  statusCode: 500,
                  headers: { ...headers, 'Content-Type': 'application/json' },
                  body: JSON.stringify({ error: 'Internal Server Configuration Error: Unable to determine request path.' }),
              };
         }
-        // Assign the raw URL directly. It should start with /3/ or similar
-        const fullPathAndQuery = event.rawUrl;
+
+        // --- **修正部分开始** ---
+        // 使用 URL 对象解析完整的原始 URL
+        // 因为 event.rawUrl 包含了完整的 URL (https://...)，可以直接解析
+        console.log("Received rawUrl:", event.rawUrl); // 调试：看看原始值
+        const incomingUrl = new URL(event.rawUrl);
+
+        // 提取路径名 (e.g., /3/search/tv) 和查询字符串 (e.g., ?api_key=...)
+        const extractedPathAndQuery = incomingUrl.pathname + incomingUrl.search;
+        console.log("Extracted path and query:", extractedPathAndQuery); // 调试：看看提取的部分
+        // --- **修正部分结束** ---
 
         const authHeader = event.headers.authorization;
 
         // --- Build TMDB Request ---
-        // Prepend the TMDB base URL to the full path and query string from rawUrl
-        const tmdbUrl = `${TMDB_BASE_URL}${fullPathAndQuery}`; // <-- Use fullPathAndQuery
-        console.log(`Proxying request to: ${tmdbUrl}`);
+        // 使用提取出的路径和查询参数
+        const tmdbUrl = `${TMDB_BASE_URL}${extractedPathAndQuery}`; // <-- 使用修正后的路径
+        console.log(`Proxying request to: ${tmdbUrl}`); // 调试：检查最终 URL
 
         const config = {};
         if (authHeader) {
@@ -74,6 +81,7 @@ exports.handler = async (event, context) => {
         };
 
     } catch (error) {
+        // ... (错误处理部分保持不变) ...
         console.error('TMDB API proxy error:', error);
 
         let statusCode = 500;
@@ -82,14 +90,15 @@ exports.handler = async (event, context) => {
         if (error.response) {
             statusCode = error.response.status;
             errorBody = {
-                 error: `Upstream API error: ${error.response.statusText || 'Unknown'}`, // Added statusText fallback
+                 error: `Upstream API error: ${error.response.statusText || 'Unknown'}`,
                  details: error.response.data || error.message
                 };
             console.error('Upstream API response error status:', error.response.status);
             console.error('Upstream API response data:', error.response.data);
         } else if (error.request) {
-            errorBody = { error: 'No response received from upstream API', details: error.message };
-             console.error('Upstream API no response:', error.request);
+             // 错误仍然属于 "No response received" 类型，但根本原因是 URL 错误
+            errorBody = { error: 'No response received from upstream API (likely due to malformed URL)', details: error.message };
+             console.error('Upstream API no response (check constructed URL):', error.cause ? error.cause.message : error.message); // 打印更底层的错误
         } else {
              console.error('Axios request setup error:', error.message);
         }
