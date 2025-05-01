@@ -1,25 +1,21 @@
 # netlify.toml
 
 [build]
-  # Command to build your site (if applicable)
-  # command = "npm run build"
-  # Directory containing your built site (if applicable)
-  # publish = "dist"
+  # ... your build settings ...
 
 [functions]
-  # Directory where Netlify Functions live
   directory = "netlify/functions"
-  # Ensure Node.js runtime dependencies are installed
-  node_bundler = "esbuild" # Recommended bundler
+  node_bundler = "esbuild"
 
-# Redirect rule to proxy requests starting with /api/tmdb/ to the function
-# This rule takes anything after /api/tmdb/ and passes it to the function's path
-# Example: Request to /api/tmdb/3/movie/550?api_key=...
-# Becomes a call to the function /.netlify/functions/tmdb-proxy/3/movie/550?api_key=...
+# UPDATED Redirect rule:
+# Match any request starting with /3/ and proxy it to the function.
+# The :splat will capture everything *after* the /3/
+# e.g., /3/search/tv?query=... -> :splat becomes search/tv?query=...
+# IMPORTANT: This assumes you don't have legitimate static files under a /3/ path.
+# If you do, this rule might capture them incorrectly unless `force=true` is carefully considered
+# or more specific rules are added *before* this one.
 [[redirects]]
-  from = "/api/tmdb/*" # The path your frontend will call
-  to = "/.netlify/functions/tmdb-proxy/:splat" # The function to handle it
-  status = 200 # Use 200 for proxying API calls
-  force = true # Ensure this rule takes precedence
-  # You might need conditions if you have other redirects
-  # conditions = { Role = ["admin"] } # Example condition
+  from = "/3/*"                             # Match paths starting with /3/
+  to = "/.netlify/functions/tmdb-proxy/:splat" # Proxy to the function
+  status = 200                              # Proxy status
+  force = true                              # Ensure this rule takes precedence over potential file serving under /3/
